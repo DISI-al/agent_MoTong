@@ -1,0 +1,9 @@
+# 依赖清单。Flet 建议锁死版本（API 变动大）；其余用下限即可。
+# 若某个 == 版本装不上，删掉 == 及后面的版本号，让 pip 自动选择。
+
+flet
+anthropic>=0.40.0
+httpx>=0.27.0
+httpx-sse>=0.4.0
+pydantic>=2.7.0
+python-dotenv>=1.0.0

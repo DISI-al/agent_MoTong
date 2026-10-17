@@ -51,6 +51,7 @@ class AgentLoop:
         messages.append({"role": "user", "content": user_text})
 
         final_text = ""
+        last_usage = None
 
         for _ in range(MAX_TOOL_ROUNDS):
             # 1. 流式请求，边收边拼
@@ -60,6 +61,8 @@ class AgentLoop:
             ):
                 if self._cancelled:
                     break
+                if chunk.usage:
+                    last_usage = chunk.usage
                 delta = chunk.choices[0].delta
                 if delta.content:
                     parser.feed_text(delta.content)
@@ -130,7 +133,7 @@ class AgentLoop:
                 break
 
         self._state.set(AgentState.IDLE)
-        return final_text
+        return final_text, last_usage
 
     async def _request_approval(self, tools: list[dict]) -> bool:
         """占位审批：打印待执行工具并自动允许。TODO：换成 Future + UI 弹窗。"""

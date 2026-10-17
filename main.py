@@ -78,6 +78,7 @@ def main(page: ft.Page):
     )
 
     approval_text = ft.Text("Claude 请求调用工具，是否允许执行？", color="#e5e5e5", size=14, text_align=ft.TextAlign.CENTER)
+    usage_text = ft.Text("", color="#666666", size=12)
 
     # ====================== 回调 ======================
     def on_allow(e):
@@ -212,12 +213,16 @@ def main(page: ft.Page):
             assistant_md.value += delta
             page.update()
 
-        final = await loop.start_turn(
+        final, usage = await loop.start_turn(
             text,
             history=history,
             on_text=on_text,
             on_approval_request=on_approval_request,
         )
+
+        if usage:
+            usage_text.value = f"tokens {usage.total_tokens}（输入 {usage.prompt_tokens} + 输出 {usage.completion_tokens}）"
+            page.update()
 
         db.save_message(current_session_id, "user", text)
         if final:
@@ -361,7 +366,7 @@ def main(page: ft.Page):
     )
 
     main_panel = ft.Column(
-        controls=[message_area, approval_row, input_box_area],
+        controls=[message_area, approval_row, input_box_area, usage_text],
         expand=True,
         spacing=14,
     )

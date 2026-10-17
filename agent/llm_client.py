@@ -61,6 +61,7 @@ async def stream_message(messages: list, tools: list | None = None, system: str 
         "max_tokens": cfg.max_tokens,
         "temperature": cfg.temperature,
         "stream": True,
+        "stream_options": {"include_usage": True},
     }
     if tools:
         kwargs["tools"] = tools

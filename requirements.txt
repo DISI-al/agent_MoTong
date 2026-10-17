@@ -2,8 +2,6 @@
 # 若某个 == 版本装不上，删掉 == 及后面的版本号，让 pip 自动选择。
 
 flet
-anthropic>=0.40.0
-httpx>=0.27.0
-httpx-sse>=0.4.0
+openai>=1.0.0
 pydantic>=2.7.0
 python-dotenv>=1.0.0

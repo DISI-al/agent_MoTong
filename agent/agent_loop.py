@@ -1,39 +1,128 @@
 """
-agent_loop.py —— Agent 主循环（灵魂）。
+agent_loop.py —— Agent 主循环（灵魂，第一版）。
 
 职责：
 1. 驱动一轮完整对话：发请求 -> 流式接收 -> 遇工具 -> 审批 -> 执行 -> 回传 -> 循环。
-2. 支持暂停 / 取消。
-3. 用 asyncio.Future 在审批时「原地挂起」，由 UI 按钮 set_result 唤醒。
+2. 状态机流转：IDLE -> WAIT_LLM -> WAIT_APPROVAL -> RUN_TOOL -> ... -> IDLE。
+3. 支持取消。
 
-核心机制（实现前必读）：
-- 审批不是轮询 flag 死等，而是 await 一个 Future；UI 回调里 future.set_result(...)。
-- 一次响应可能带多个 tool_use，审批粒度建议【批量一次】。
-- 循环终止条件：Claude 返回纯文本且没有新的 tool_use。
+第一版说明（后续会改）：
+- 审批 _request_approval 是【占位】：打印 + 自动允许；TODO 换成 asyncio.Future + UI 弹窗。
+- 暂未接入 db（会话持久化）、暂未实时刷 UI。
+- 工具调用走 OpenAI 格式：assistant 消息带 tool_calls，结果用 role="tool" 回传。
 """
 import asyncio
+import json
 
+from agent.llm_client import stream_message
 from agent.state import AgentState, AgentStateContainer
+from agent.stream_parser import StreamParser
+from tools.executor import execute as execute_tool
+from tools.schemas import get_tool_schemas
+
+MAX_TOOL_ROUNDS = 10  # 最多工具调用轮数，防死循环
+
+SYSTEM_PROMPT = "你是一个本地文件助手，可以使用工具读取文件、列出目录。需要时调用工具完成任务。"
 
 
 class AgentLoop:
     """可暂停、带人工审批的 Agent 主循环。"""
 
     def __init__(self, state: AgentStateContainer) -> None:
-        raise NotImplementedError("待我手动实现")
+        self._state = state
+        self._cancelled = False
 
-    async def start_turn(self, session_id: int, user_text: str) -> None:
-        """开始新一轮对话（仅当状态为 IDLE）。"""
-        raise NotImplementedError("待我手动实现")
+    async def start_turn(self, user_text: str, history: list | None = None) -> str:
+        """开始一轮对话，返回最终的 assistant 文本。"""
+        self._cancelled = False
+        self._state.set(AgentState.WAIT_LLM)
+
+        messages = list(history) if history else []
+        messages.append({"role": "user", "content": user_text})
+
+        final_text = ""
+
+        for _ in range(MAX_TOOL_ROUNDS):
+            # 1. 流式请求，边收边拼
+            parser = StreamParser()
+            async for chunk in stream_message(
+                messages, tools=get_tool_schemas(), system=SYSTEM_PROMPT
+            ):
+                delta = chunk.choices[0].delta
+                if delta.content:
+                    parser.feed_text(delta.content)  # 完整版这里还要实时刷 UI
+                if delta.tool_calls:
+                    for tc in delta.tool_calls:
+                        parser.feed_tool_call(
+                            index=tc.index,
+                            tool_id=tc.id,
+                            name=tc.function.name if tc.function else None,
+                            arguments=tc.function.arguments if tc.function else None,
+                        )
+
+            text = parser.text()
+            tools = parser.completed_tools()
+
+            # 2. 没有工具调用 → 本轮结束
+            if not tools:
+                final_text = text
+                break
+
+            # 3. 有工具调用 → 审批 → 执行 → 回传
+            self._state.set(AgentState.WAIT_APPROVAL)
+            approved = await self._request_approval(tools)
+
+            # 把 assistant 的 tool_calls 消息加进历史（OpenAI 格式）
+            messages.append(
+                {
+                    "role": "assistant",
+                    "content": text or None,
+                    "tool_calls": [
+                        {
+                            "id": t["id"],
+                            "type": "function",
+                            "function": {
+                                "name": t["name"],
+                                "arguments": json.dumps(t["arguments"], ensure_ascii=False),
+                            },
+                        }
+                        for t in tools
+                    ],
+                }
+            )
+
+            # 逐个执行工具，结果用 role="tool" 回传
+            self._state.set(AgentState.RUN_TOOL)
+            for t in tools:
+                if approved:
+                    result = await self._run_tool(t)
+                else:
+                    result = {"error": "用户拒绝执行该工具"}
+                messages.append(
+                    {
+                        "role": "tool",
+                        "tool_call_id": t["id"],
+                        "content": json.dumps(result, ensure_ascii=False),
+                    }
+                )
+
+            if self._cancelled:
+                break
+
+        self._state.set(AgentState.IDLE)
+        return final_text
 
     async def _request_approval(self, tools: list[dict]) -> bool:
-        """挂起等待用户审批，返回 True=允许 / False=拒绝。"""
-        raise NotImplementedError("待我手动实现")
+        """占位审批：打印待执行工具并自动允许。TODO：换成 Future + UI 弹窗。"""
+        for t in tools:
+            print(f"[审批占位] 将执行 {t['name']}({t['arguments']}) —— 自动允许")
+        return True
 
-    async def _run_tool(self, tool_use: dict) -> dict:
-        """调用 tools.executor 执行单个工具，返回 tool_result。"""
-        raise NotImplementedError("待我手动实现")
+    async def _run_tool(self, tool: dict) -> dict:
+        """执行单个工具，返回结果 dict。"""
+        return await execute_tool(tool["name"], tool["arguments"])
 
     async def cancel(self) -> None:
-        """取消当前运行（置 CANCELLED，并中断流式请求）。"""
-        raise NotImplementedError("待我手动实现")
+        """取消当前轮（置 CANCELLED；第一版只设标志，不中途强行中断流）。"""
+        self._cancelled = True
+        self._state.set(AgentState.CANCELLED)

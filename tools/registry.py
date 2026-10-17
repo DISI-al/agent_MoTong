@@ -12,15 +12,18 @@ _REGISTRY: dict[str, ToolHandler] = {}
 
 
 def register(name: str) -> Callable:
-    """装饰器：把一个 async 函数注册为工具（按 name 存进 _REGISTRY）。"""
-    raise NotImplementedError("待我手动实现")
+    """装饰器：把一个 async 函数按 name 注册为工具。"""
+    def decorator(func: ToolHandler) -> ToolHandler:
+        _REGISTRY[name] = func
+        return func
+    return decorator
 
 
 def get_handler(name: str) -> ToolHandler | None:
     """按工具名取执行函数；不存在返回 None。"""
-    raise NotImplementedError("待我手动实现")
+    return _REGISTRY.get(name)
 
 
 def list_tools() -> list[str]:
     """列出所有已注册工具名。"""
-    raise NotImplementedError("待我手动实现")
+    return list(_REGISTRY.keys())

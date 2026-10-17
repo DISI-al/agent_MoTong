@@ -2,15 +2,15 @@
 schemas.py —— 工具定义。
 
 职责：
-1. 每个工具一个 JSON Schema（给 Claude 识别工具 + 参数）。
-2. 每个工具对应的 Pydantic 参数模型（本地校验）。
+1. 每个工具对应的 Pydantic 参数模型（本地校验用）。
+2. 生成 OpenAI function 格式的工具定义（给模型看）。
 
-首批工具（按实现顺序）：read_file / list_dir，再补 write_file / run_shell。
+格式说明：DeepSeek 是 OpenAI 兼容接口，工具用 function 类型定义。
 """
 from pydantic import BaseModel
 
 
-# ---- Pydantic 参数模型（本地校验用）----
+# ---- Pydantic 参数模型（本地校验 / 文档用）----
 class ReadFileParams(BaseModel):
     path: str
 
@@ -28,7 +28,36 @@ class RunShellParams(BaseModel):
     command: str
 
 
-# ---- 给 Claude 的工具 JSON Schema 列表 ----
+# ---- 给模型看的工具定义（OpenAI function 格式）----
 def get_tool_schemas() -> list[dict]:
-    """返回全部工具的 JSON Schema 列表，用于 Messages API 的 tools 参数。"""
-    raise NotImplementedError("待我手动实现")
+    """返回当前已实现工具的定义列表（先只放 read_file / list_dir）。"""
+    return [
+        {
+            "type": "function",
+            "function": {
+                "name": "read_file",
+                "description": "读取一个文本文件的内容",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "path": {"type": "string", "description": "文件路径"}
+                    },
+                    "required": ["path"],
+                },
+            },
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "list_dir",
+                "description": "列出目录下的文件和子目录名",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "path": {"type": "string", "description": "目录路径"}
+                    },
+                    "required": ["path"],
+                },
+            },
+        },
+    ]

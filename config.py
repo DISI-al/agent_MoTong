@@ -20,10 +20,10 @@ load_dotenv()
 
 
 def get_api_key() -> str:
-    """从 .env 读 API Key；缺失时抛清晰错误。"""
-    key = os.getenv("ANTHROPIC_API_KEY")
+    """从 .env 读 DeepSeek API Key；缺失时抛清晰错误。"""
+    key = os.getenv("DEEPSEEK_API_KEY")
     if not key:
-        raise RuntimeError("缺少 ANTHROPIC_API_KEY，请先在 .env 里配置")
+        raise RuntimeError("缺少 DEEPSEEK_API_KEY，请先在 .env 里配置")
     return key
 
 
@@ -39,6 +39,6 @@ def get_workspace_roots() -> list[Path]:
 @dataclass
 class Config:
     """全局配置容器：模型 / 采样参数。"""
-    model: str = os.getenv("ANTHROPIC_MODEL", "claude-sonnet-5-5")
+    model: str = os.getenv("DEEPSEEK_MODEL", "deepseek-chat")
     temperature: float = 0.7
     max_tokens: int = 4096

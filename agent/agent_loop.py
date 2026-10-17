@@ -32,8 +32,18 @@ class AgentLoop:
         self._state = state
         self._cancelled = False
 
-    async def start_turn(self, user_text: str, history: list | None = None) -> str:
-        """开始一轮对话，返回最终的 assistant 文本。"""
+    async def start_turn(
+        self,
+        user_text: str,
+        history: list | None = None,
+        on_text=None,
+        on_approval_request=None,
+    ) -> str:
+        """开始一轮对话，返回最终的 assistant 文本。
+
+        on_text: 可选 async 回调，每收到一段文字增量时调用（用于实时流式显示）。
+        on_approval_request: 可选 async 回调，需要审批工具时调用，返回 bool（允许/拒绝）。
+        """
         self._cancelled = False
         self._state.set(AgentState.WAIT_LLM)
 
@@ -50,7 +60,9 @@ class AgentLoop:
             ):
                 delta = chunk.choices[0].delta
                 if delta.content:
-                    parser.feed_text(delta.content)  # 完整版这里还要实时刷 UI
+                    parser.feed_text(delta.content)
+                    if on_text:
+                        await on_text(delta.content)  # 实时回调给 UI
                 if delta.tool_calls:
                     for tc in delta.tool_calls:
                         parser.feed_tool_call(
@@ -70,7 +82,10 @@ class AgentLoop:
 
             # 3. 有工具调用 → 审批 → 执行 → 回传
             self._state.set(AgentState.WAIT_APPROVAL)
-            approved = await self._request_approval(tools)
+            if on_approval_request:
+                approved = await on_approval_request(tools)
+            else:
+                approved = await self._request_approval(tools)
 
             # 把 assistant 的 tool_calls 消息加进历史（OpenAI 格式）
             messages.append(

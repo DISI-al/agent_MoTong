@@ -11,6 +11,7 @@ executor.py —— 工具执行器（安全闸门）。
 - 本层不信任任何路径，一律过 safe_path（用 resolve() 防 ../ 与符号链接逃逸）。
 """
 import asyncio
+import subprocess
 from pathlib import Path
 
 from config import get_workspace_roots
@@ -32,6 +33,32 @@ async def _list_dir(args: dict) -> dict:
     path = args["path"]
     entries = sorted(p.name for p in Path(path).iterdir())
     return {"entries": entries}
+
+
+@register("write_file")
+async def _write_file(args: dict) -> dict:
+    """写入文件（path 已由 execute 校验过白名单）。"""
+    path = args["path"]
+    content = args["content"]
+    await asyncio.to_thread(Path(path).write_text, content, encoding="utf-8")
+    return {"written": path, "bytes": len(content)}
+
+
+@register("run_shell")
+async def _run_shell(args: dict) -> dict:
+    """执行 shell 命令（安全性靠审批门，不靠路径白名单）。"""
+    command = args["command"]
+    proc = await asyncio.create_subprocess_shell(
+        command,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    stdout, stderr = await proc.communicate()
+    return {
+        "returncode": proc.returncode,
+        "stdout": stdout.decode(errors="replace"),
+        "stderr": stderr.decode(errors="replace"),
+    }
 
 
 async def execute(tool_name: str, tool_input: dict) -> dict:

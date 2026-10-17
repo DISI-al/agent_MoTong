@@ -60,4 +60,33 @@ def get_tool_schemas() -> list[dict]:
                 },
             },
         },
+        {
+            "type": "function",
+            "function": {
+                "name": "write_file",
+                "description": "写入一个文本文件",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "path": {"type": "string", "description": "文件路径"},
+                        "content": {"type": "string", "description": "要写入的内容"},
+                    },
+                    "required": ["path", "content"],
+                },
+            },
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "run_shell",
+                "description": "执行一个 shell 命令，返回 stdout/stderr/返回码",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "command": {"type": "string", "description": "要执行的命令"},
+                    },
+                    "required": ["command"],
+                },
+            },
+        },
     ]

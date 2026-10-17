@@ -61,8 +61,21 @@ def main(page: ft.Page):
         visible=False,
     )
 
+    auto_approve = False
+
+    def toggle_auto(e):
+        nonlocal auto_approve
+        auto_approve = not auto_approve
+        auto_btn.content = f"自动允许：{'开' if auto_approve else '关'}"
+        page.update()
+
+    auto_btn = ft.Button(content="自动允许：关", on_click=toggle_auto)
+    stop_btn = ft.Button(content="停止", on_click=lambda e: loop.cancel())
+
     async def on_approval_request(tools):
         nonlocal approval_future
+        if auto_approve:
+            return True  # 信任模式：不弹窗，直接允许
         approval_text.value = f"要执行：{_format_tools(tools)}"
         approval_row.visible = True
         page.update()
@@ -114,11 +127,18 @@ def main(page: ft.Page):
     page.add(
         ft.Column(
             controls=[
-                output,
+                ft.Column(
+                    controls=[output],
+                    height=400,
+                    scroll=ft.ScrollMode.AUTO,
+                    auto_scroll=True,
+                ),
                 ft.Row(
                     controls=[
                         input_field,
                         ft.Button(content="发送", on_click=on_send),
+                        auto_btn,
+                        stop_btn,
                     ]
                 ),
                 approval_row,

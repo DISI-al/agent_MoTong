@@ -22,7 +22,7 @@ from tools.schemas import get_tool_schemas
 
 MAX_TOOL_ROUNDS = 10  # 最多工具调用轮数，防死循环
 
-SYSTEM_PROMPT = "你是一个本地文件助手，可以使用工具读取文件、列出目录。需要时调用工具完成任务。"
+SYSTEM_PROMPT = "你是一个本地文件助手，可以使用工具：读取文件、列出目录、写入文件、执行 shell 命令。需要时调用工具完成任务。"
 
 
 class AgentLoop:
@@ -58,6 +58,8 @@ class AgentLoop:
             async for chunk in stream_message(
                 messages, tools=get_tool_schemas(), system=SYSTEM_PROMPT
             ):
+                if self._cancelled:
+                    break
                 delta = chunk.choices[0].delta
                 if delta.content:
                     parser.feed_text(delta.content)
@@ -71,6 +73,9 @@ class AgentLoop:
                             name=tc.function.name if tc.function else None,
                             arguments=tc.function.arguments if tc.function else None,
                         )
+
+            if self._cancelled:
+                break  # 被中断，直接结束本轮
 
             text = parser.text()
             tools = parser.completed_tools()
@@ -137,7 +142,7 @@ class AgentLoop:
         """执行单个工具，返回结果 dict。"""
         return await execute_tool(tool["name"], tool["arguments"])
 
-    async def cancel(self) -> None:
-        """取消当前轮（置 CANCELLED；第一版只设标志，不中途强行中断流）。"""
+    def cancel(self) -> None:
+        """取消当前轮：置标志 + CANCELLED，流式循环检测到后中断。"""
         self._cancelled = True
         self._state.set(AgentState.CANCELLED)

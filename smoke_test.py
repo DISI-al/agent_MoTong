@@ -47,7 +47,7 @@ def main(page: ft.Page):
         )
     )
 
-    # 底部输入框区域（移除hint_color）
+    # 底部输入框区域
     input_box_area = ft.Container(
         padding=12,
         bgcolor="#111111",
@@ -62,7 +62,8 @@ def main(page: ft.Page):
                     border_color="#27272a",
                     color="#f1f1f1"
                 ),
-                ft.ElevatedButton("发送", bgcolor="#ffffff", color="#000000")
+                # ✅ Flet1.0 填充按钮：FilledButton
+                ft.FilledButton("发送", bgcolor="#ffffff", color="#000000")
             ],
             spacing=12
         )

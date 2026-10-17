@@ -1,36 +1,49 @@
 """
 main.py —— Flet 应用入口（Flet 1.0：入口是 ft.run，不是 ft.app）。
 
-职责：
-1. 以桌面窗口模式启动。
-2. 初始化三栏布局：左侧会话侧边栏 | 中间聊天区 | 底部日志区。
-3. 把 UI 事件绑定到 agent/tools/db（后续步骤接）。
-
-架构红线：
-- UI 只负责「展示 + 接收点击 + 触发」，不写业务。
-- 单 asyncio 事件循环：接 agent_loop 时把本函数改成 async def 即可。
+最小接线版：输入框 -> 点发送 -> 后台跑 agent -> 显示最终回复。
+后续再接入：流式显示、审批弹窗、会话列表。
 """
 import flet as ft
 
-from ui.chat_panel import ChatPanel
-from ui.log_panel import LogPanel
-from ui.session_sidebar import SessionSidebar
+from agent.agent_loop import AgentLoop
+from agent.state import AgentStateContainer
 
 
 def main(page: ft.Page):
     page.title = "Agent 客户端"
-    page.bgcolor = ft.Colors.WHITE
 
-    sidebar = SessionSidebar().build()
-    chat = ChatPanel().build()
-    log = LogPanel().build()
+    state = AgentStateContainer()
+    loop = AgentLoop(state)
+
+    output = ft.Text("")
+    input_field = ft.TextField()
+
+    def on_send(e):
+        text = input_field.value
+        if not text:
+            return
+        input_field.value = ""
+        page.run_task(run_turn, text)
+
+    async def run_turn(text):
+        output.value = "思考中..."
+        page.update()
+        final = await loop.start_turn(text)
+        output.value = final
+        page.update()
 
     page.add(
-        ft.Row(
+        ft.Column(
             controls=[
-                sidebar,
-                ft.Column(controls=[chat, log]),
-            ],
+                output,
+                ft.Row(
+                    controls=[
+                        input_field,
+                        ft.Button(content="发送", on_click=on_send),
+                    ]
+                ),
+            ]
         )
     )
 

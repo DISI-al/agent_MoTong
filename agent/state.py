@@ -16,7 +16,7 @@ from enum import Enum, auto
 
 class AgentState(Enum):
     IDLE = auto()          # 空闲，可接收新消息
-    WAIT_LLM = auto()      # 等待 Claude 流式返回
+    WAIT_LLM = auto()      # 等待 MoTong 流式返回
     WAIT_APPROVAL = auto()  # 等待人工审批工具
     RUN_TOOL = auto()      # 正在执行工具
     CANCELLED = auto()     # 已被用户取消

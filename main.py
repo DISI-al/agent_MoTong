@@ -26,7 +26,7 @@ def _format_tools(tools):
 
 def main(page: ft.Page):
     # ====================== 窗口全局配置 ======================
-    page.title = "My Claude Harness"
+    page.title = "Agent MoTong"
     page.bgcolor = "#0a0a0a"
     page.window.width = 1180
     page.window.height = 800
@@ -65,7 +65,7 @@ def main(page: ft.Page):
     task_list = ft.Column(controls=[], spacing=4)
 
     input_field = ft.TextField(
-        hint_text="输入消息，发送给 Claude...",
+        hint_text="输入消息，发送给 MoTong...",
         expand=True,
         bgcolor="#111111",
         border_color="#222222",
@@ -77,7 +77,7 @@ def main(page: ft.Page):
         border_radius=6,
     )
 
-    approval_text = ft.Text("Claude 请求调用工具，是否允许执行？", color="#e5e5e5", size=14, text_align=ft.TextAlign.CENTER)
+    approval_text = ft.Text("MoTong 请求调用工具，是否允许执行？", color="#e5e5e5", size=14, text_align=ft.TextAlign.CENTER)
     usage_text = ft.Text("", color="#666666", size=12)
 
     # ====================== 回调 ======================

@@ -16,9 +16,12 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-load_dotenv()
+try:
+    load_dotenv()
+except Exception:
+    pass  # 打包后无 .env，用 settings.json 即可
 
-SETTINGS_FILE = Path("settings.json")
+SETTINGS_FILE = Path(__file__).parent / "settings.json"
 
 
 def _load_settings() -> dict:

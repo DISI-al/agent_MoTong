@@ -2,6 +2,8 @@
 .env
 .env.*
 !.env.example
+settings.json
+memory/
 
 # ===== Python =====
 __pycache__/

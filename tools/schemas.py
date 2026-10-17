@@ -89,4 +89,88 @@ def get_tool_schemas() -> list[dict]:
                 },
             },
         },
+        {
+            "type": "function",
+            "function": {
+                "name": "save_note",
+                "description": "把内容保存为一条记忆笔记（Markdown 文件），存在 memory/ 目录下",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "title": {"type": "string", "description": "笔记标题（作为文件名）"},
+                        "content": {"type": "string", "description": "笔记内容（Markdown）"},
+                    },
+                    "required": ["title", "content"],
+                },
+            },
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "grep_files",
+                "description": "在目录下搜索包含指定文本的文件，返回匹配的文件路径列表",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "pattern": {"type": "string", "description": "要搜索的文本"},
+                        "path": {"type": "string", "description": "要搜索的目录路径"},
+                    },
+                    "required": ["pattern", "path"],
+                },
+            },
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "current_time",
+                "description": "获取当前的日期和时间",
+                "parameters": {"type": "object", "properties": {}},
+            },
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "append_file",
+                "description": "往文件末尾追加内容（不覆盖原有内容）",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "path": {"type": "string", "description": "文件路径"},
+                        "content": {"type": "string", "description": "要追加的内容"},
+                    },
+                    "required": ["path", "content"],
+                },
+            },
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "fetch_url",
+                "description": "抓取一个网页的文本内容（去掉 HTML 标签）",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "url": {"type": "string", "description": "要抓取的网页 URL"},
+                    },
+                    "required": ["url"],
+                },
+            },
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "schedule_task",
+                "description": "安排一个定时提醒任务，到时间会弹出提醒",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "content": {"type": "string", "description": "提醒内容"},
+                        "fire_at": {"type": "string", "description": "触发时间（YYYY-MM-DD HH:MM:SS），与 minutes/seconds 三选一"},
+                        "minutes": {"type": "integer", "description": "多少分钟后触发"},
+                        "seconds": {"type": "integer", "description": "多少秒后触发"},
+                    },
+                    "required": ["content"],
+                },
+            },
+        },
     ]

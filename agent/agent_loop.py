@@ -22,7 +22,7 @@ from tools.schemas import get_tool_schemas
 
 MAX_TOOL_ROUNDS = 10  # 最多工具调用轮数，防死循环
 
-SYSTEM_PROMPT = "你是一个本地文件助手，可以使用工具：读取文件、列出目录、写入文件、执行 shell 命令。需要时调用工具完成任务。"
+SYSTEM_PROMPT = "你是一个本地智能助手，可以使用多种工具完成任务，包括：读写文件、搜索文件内容、执行命令、记录笔记、抓取网页、获取当前时间、设置定时提醒。需要时调用工具完成任务。"
 
 
 class AgentLoop:

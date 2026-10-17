@@ -11,9 +11,14 @@ executor.py —— 工具执行器（安全闸门）。
 - 本层不信任任何路径，一律过 safe_path（用 resolve() 防 ../ 与符号链接逃逸）。
 """
 import asyncio
+import re
 import subprocess
+from datetime import datetime, timedelta
 from pathlib import Path
 
+import httpx
+
+import db
 from config import get_workspace_roots
 from utils.safe_path import resolve_safe
 from tools.registry import get_handler, register
@@ -59,6 +64,89 @@ async def _run_shell(args: dict) -> dict:
         "stdout": stdout.decode(errors="replace"),
         "stderr": stderr.decode(errors="replace"),
     }
+
+
+@register("save_note")
+async def _save_note(args: dict) -> dict:
+    """把内容保存为一条记忆笔记（写入 memory/ 目录）。"""
+    title = args["title"]
+    content = args["content"]
+    # 标题做安全处理，防止路径穿越
+    safe_title = "".join(c if (c.isalnum() or c in "-_ ") else "_" for c in title).strip() or "note"
+    memory_dir = Path("memory")
+    memory_dir.mkdir(exist_ok=True)
+    path = memory_dir / f"{safe_title}.md"
+    await asyncio.to_thread(path.write_text, content, encoding="utf-8")
+    return {"saved": str(path), "title": title}
+
+
+@register("grep_files")
+async def _grep_files(args: dict) -> dict:
+    """在目录下搜索包含指定文本的文件。"""
+    pattern = args["pattern"]
+    directory = args["path"]
+    matches = []
+
+    def search():
+        for filepath in Path(directory).rglob("*"):
+            if not filepath.is_file():
+                continue
+            try:
+                if pattern in filepath.read_text(encoding="utf-8", errors="ignore"):
+                    matches.append(str(filepath))
+            except Exception:
+                continue
+
+    await asyncio.to_thread(search)
+    return {"matches": matches}
+
+
+@register("current_time")
+async def _current_time(args: dict) -> dict:
+    """返回当前日期和时间。"""
+    return {"now": datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
+
+
+@register("append_file")
+async def _append_file(args: dict) -> dict:
+    """往文件末尾追加内容（path 已由 execute 校验过白名单）。"""
+    path = args["path"]
+    content = args["content"]
+
+    def append():
+        with open(path, "a", encoding="utf-8") as f:
+            f.write(content)
+
+    await asyncio.to_thread(append)
+    return {"appended": path}
+
+
+@register("fetch_url")
+async def _fetch_url(args: dict) -> dict:
+    """抓取网页文本内容（去掉 HTML 标签）。"""
+    url = args["url"]
+    async with httpx.AsyncClient(timeout=15, follow_redirects=True) as client:
+        resp = await client.get(url)
+        resp.raise_for_status()
+    text = re.sub(r"<[^>]+>", " ", resp.text)
+    text = re.sub(r"\s+", " ", text).strip()
+    return {"status": resp.status_code, "text": text[:5000]}
+
+
+@register("schedule_task")
+async def _schedule_task(args: dict) -> dict:
+    """安排一个定时提醒任务。"""
+    content = args["content"]
+    fire_at = args.get("fire_at")
+    minutes = args.get("minutes")
+    seconds = args.get("seconds")
+    if not fire_at and (minutes or seconds):
+        delta = timedelta(minutes=minutes or 0, seconds=seconds or 0)
+        fire_at = (datetime.now() + delta).strftime("%Y-%m-%d %H:%M:%S")
+    if not fire_at:
+        return {"error": "需要提供 fire_at、minutes 或 seconds 之一"}
+    task_id = db.add_task(content, fire_at)
+    return {"task_id": task_id, "fire_at": fire_at}
 
 
 async def execute(tool_name: str, tool_input: dict) -> dict:

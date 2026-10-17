@@ -2,43 +2,74 @@
 config.py —— 全局配置中心。
 
 职责：
-1. 从 .env 读取 API Key（绝不硬编码、绝不入库）。
-2. 定义模型名、温度、最大 token 等请求参数。
-3. 定义「工作目录白名单」——所有本地工具只能在这几个目录下读写。
+1. 读 API Key / 模型 / 白名单（settings.json 优先，.env 兜底）。
+2. save_settings 供设置界面写入。
 
 安全红线：
-- API Key 只从环境变量 / .env 读取，任何地方不得出现明文 Key。
-- 工作目录白名单是本地工具的权限边界，必须在这里集中定义。
+- API Key 只从 settings.json / .env 读，绝不硬编码、绝不入库。
+- settings.json 已被 .gitignore 排除。
 """
+import json
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from dotenv import load_dotenv
 
 load_dotenv()
 
+SETTINGS_FILE = Path("settings.json")
+
+
+def _load_settings() -> dict:
+    """读 settings.json；不存在或损坏则返回空字典。"""
+    try:
+        return json.loads(SETTINGS_FILE.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+
+
+def save_settings(data: dict) -> None:
+    """把设置写入 settings.json（供设置界面调用）。"""
+    SETTINGS_FILE.write_text(
+        json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
+
+
+def get_settings_for_ui() -> dict:
+    """返回当前设置（供设置界面显示），未配置的返回空串。"""
+    s = _load_settings()
+    return {
+        "api_key": s.get("api_key") or os.getenv("DEEPSEEK_API_KEY") or "",
+        "model": s.get("model") or os.getenv("DEEPSEEK_MODEL", "deepseek-chat"),
+        "workspace_roots": s.get("workspace_roots") or os.getenv("WORKSPACE_ROOTS", ""),
+    }
+
 
 def get_api_key() -> str:
-    """从 .env 读 DeepSeek API Key；缺失时抛清晰错误。"""
-    key = os.getenv("DEEPSEEK_API_KEY")
+    """读 API Key（settings.json 优先，.env 兜底）。"""
+    key = _load_settings().get("api_key") or os.getenv("DEEPSEEK_API_KEY")
     if not key:
-        raise RuntimeError("缺少 DEEPSEEK_API_KEY，请先在 .env 里配置")
+        raise RuntimeError("缺少 API Key，请在设置里配置或填 .env")
     return key
 
 
+def get_model() -> str:
+    """读模型名（settings.json 优先，.env 兜底）。"""
+    return _load_settings().get("model") or os.getenv("DEEPSEEK_MODEL", "deepseek-chat")
+
+
 def get_workspace_roots() -> list[Path]:
-    """读 WORKSPACE_ROOTS（逗号分隔），返回已解析的绝对路径列表。"""
-    raw = os.getenv("WORKSPACE_ROOTS", "")
+    """读工作目录白名单（settings.json 优先，.env 兜底）。"""
+    raw = _load_settings().get("workspace_roots") or os.getenv("WORKSPACE_ROOTS", "")
     roots = [Path(p.strip()).resolve() for p in raw.split(",") if p.strip()]
     if not roots:
-        raise RuntimeError("缺少 WORKSPACE_ROOTS，请先在 .env 里配置")
+        raise RuntimeError("缺少工作目录白名单，请在设置里配置")
     return roots
 
 
 @dataclass
 class Config:
-    """全局配置容器：模型 / 采样参数。"""
-    model: str = os.getenv("DEEPSEEK_MODEL", "deepseek-chat")
+    model: str = field(default_factory=get_model)
     temperature: float = 0.7
     max_tokens: int = 4096

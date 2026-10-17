@@ -26,6 +26,12 @@ def get_client() -> AsyncOpenAI:
     return _client
 
 
+def reset_client() -> None:
+    """重置客户端单例（设置变更后调用，让新配置生效）。"""
+    global _client
+    _client = None
+
+
 async def send_message(messages: list, tools: list | None = None, system: str | None = None):
     """非流式请求，返回完整响应（文本在 choices[0].message.content）。"""
     cfg = Config()

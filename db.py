@@ -47,6 +47,14 @@ def init_db(db_path: Path) -> None:
             created_at TEXT NOT NULL DEFAULT (datetime('now')),
             FOREIGN KEY (session_id) REFERENCES sessions(id)
         );
+
+        CREATE TABLE IF NOT EXISTS tasks (
+            id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            content    TEXT NOT NULL,
+            fire_at    TEXT NOT NULL,
+            done       INTEGER NOT NULL DEFAULT 0,
+            created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
         """
     )
     conn.commit()
@@ -91,3 +99,69 @@ def load_messages(session_id: int) -> list[dict]:
     ).fetchall()
     conn.close()
     return [dict(r) for r in rows]
+
+
+def delete_session(session_id: int) -> None:
+    """删除会话及其所有消息。"""
+    conn = get_connection(_DB_PATH)
+    conn.execute("DELETE FROM messages WHERE session_id = ?", (session_id,))
+    conn.execute("DELETE FROM sessions WHERE id = ?", (session_id,))
+    conn.commit()
+    conn.close()
+
+
+def update_session_title(session_id: int, title: str) -> None:
+    """更新会话标题。"""
+    conn = get_connection(_DB_PATH)
+    conn.execute("UPDATE sessions SET title = ? WHERE id = ?", (title, session_id))
+    conn.commit()
+    conn.close()
+
+
+def add_task(content: str, fire_at: str) -> int:
+    """新增一个定时任务，返回 task_id。"""
+    conn = get_connection(_DB_PATH)
+    cur = conn.execute(
+        "INSERT INTO tasks (content, fire_at) VALUES (?, ?)", (content, fire_at)
+    )
+    conn.commit()
+    task_id = cur.lastrowid
+    conn.close()
+    return task_id
+
+
+def get_due_tasks(now_str: str) -> list[dict]:
+    """返回已到期且未完成的任务。"""
+    conn = get_connection(_DB_PATH)
+    rows = conn.execute(
+        "SELECT * FROM tasks WHERE fire_at <= ? AND done = 0 ORDER BY fire_at ASC",
+        (now_str,),
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def list_tasks() -> list[dict]:
+    """列出所有未完成的任务。"""
+    conn = get_connection(_DB_PATH)
+    rows = conn.execute(
+        "SELECT * FROM tasks WHERE done = 0 ORDER BY fire_at ASC"
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def mark_task_done(task_id: int) -> None:
+    """标记任务为已完成。"""
+    conn = get_connection(_DB_PATH)
+    conn.execute("UPDATE tasks SET done = 1 WHERE id = ?", (task_id,))
+    conn.commit()
+    conn.close()
+
+
+def delete_task(task_id: int) -> None:
+    """删除任务。"""
+    conn = get_connection(_DB_PATH)
+    conn.execute("DELETE FROM tasks WHERE id = ?", (task_id,))
+    conn.commit()
+    conn.close()

@@ -1,28 +1,45 @@
 """
 main.py —— Flet 应用入口（Flet 1.0：入口是 ft.run，不是 ft.app）。
 
-当前：输入框 -> 流式输出 -> 工具审批（允许/拒绝）-> 显示回复。
+当前：输入框 -> 流式输出 -> 工具审批 -> 多轮对话（db 持久化）。
 """
 import asyncio
+from pathlib import Path
 
 import flet as ft
 
+import db
 from agent.agent_loop import AgentLoop
 from agent.state import AgentStateContainer
+
+DB_PATH = Path("app.db")
 
 
 def _format_tools(tools: list) -> str:
     return "；".join(f"{t['name']}({t['arguments']})" for t in tools)
 
 
+def _role_label(role: str) -> str:
+    return "你" if role == "user" else "助手"
+
+
 def main(page: ft.Page):
     page.title = "Agent 客户端"
+
+    # 初始化数据库，取最近的会话（没有就新建）
+    db.init_db(DB_PATH)
+    sessions = db.list_sessions()
+    session_id = sessions[0]["id"] if sessions else db.create_session("默认会话")
 
     state = AgentStateContainer()
     loop = AgentLoop(state)
 
     output = ft.Text("")
     input_field = ft.TextField()
+
+    # 启动时把已有历史显示出来（持久化效果）
+    for m in db.load_messages(session_id):
+        output.value += f"{_role_label(m['role'])}：{m['content']}\n\n"
 
     approval_text = ft.Text("")
     approval_future = None
@@ -66,18 +83,33 @@ def main(page: ft.Page):
         page.run_task(run_turn, text)
 
     async def run_turn(text):
-        output.value = ""
+        # 加载历史（之前轮次的 user/assistant），转成 OpenAI 格式
+        history = [
+            {"role": m["role"], "content": m["content"]}
+            for m in db.load_messages(session_id)
+        ]
+
+        output.value += f"你：{text}\n助手："
         page.update()
 
         async def on_text(delta):
             output.value += delta
             page.update()
 
-        await loop.start_turn(
+        final = await loop.start_turn(
             text,
+            history=history,
             on_text=on_text,
             on_approval_request=on_approval_request,
         )
+
+        output.value += "\n\n"
+        page.update()
+
+        # 保存这一轮
+        db.save_message(session_id, "user", text)
+        if final:
+            db.save_message(session_id, "assistant", final)
 
     page.add(
         ft.Column(

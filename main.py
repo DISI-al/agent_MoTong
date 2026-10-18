@@ -4,10 +4,14 @@ main.py —— Flet 应用入口。
 Vercel 暗色 UI + 会话列表（新建/切换/删除）+ 完整 agent（流式/审批/工具/记忆/中断）。
 """
 import asyncio
+import os
+import threading
 from datetime import datetime
 from pathlib import Path
 
 import flet as ft
+import pystray
+from PIL import Image
 
 import db
 from agent.agent_loop import AgentLoop
@@ -380,6 +384,46 @@ def main(page: ft.Page):
         switch_session(sessions[0]["id"])
     refresh_task_list()
     page.run_task(scheduler_loop)
+
+    # ====================== 系统托盘 ======================
+    def _load_tray_image():
+        for name in ["assets/icon.png", "favicon.ico"]:
+            fp = Path(__file__).parent / name
+            if fp.exists():
+                return Image.open(fp)
+        return None
+
+    def quit_app():
+        os._exit(0)
+
+    async def _show_window():
+        page.window.visible = True
+        page.update()
+
+    def show_from_tray():
+        page.run_task(_show_window)
+
+    tray_img = _load_tray_image()
+    if tray_img:
+        tray = pystray.Icon(
+            "Agent MoTong",
+            tray_img,
+            "Agent MoTong",
+            menu=pystray.Menu(
+                pystray.MenuItem("显示", lambda icon, item: show_from_tray()),
+                pystray.MenuItem("退出", lambda icon, item: quit_app()),
+            ),
+        )
+        threading.Thread(target=tray.run, daemon=True).start()
+
+    # 点 X 关闭 → 隐藏到托盘，不退出
+    page.window.prevent_close = True
+
+    def on_window_event(e):
+        if e.type.value == "close":
+            page.window.visible = False
+
+    page.window.on_event = on_window_event
 
 
 ft.run(main)
